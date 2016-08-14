@@ -10,10 +10,12 @@ connection.onopen = function (session) {
     var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'hyperspace', {
         preload: preload, create: create, update: update, render: render});
 
+
     var ship;
     var bullets;
     var cursors;
     var enemies;
+    var known_enemies = {};
     var ship_velocity = 10;
     var ship_angular_velocity = 10;
     
@@ -27,10 +29,41 @@ connection.onopen = function (session) {
         game.time.advancedTiming = true;
     }
 
+    function update_others(others) {
+        others[0].forEach((other) => {
+            // unpack other
+            var id = other[0];
+            var x = other[1];
+            var y = other[2];
+            var angle = other[3];
+            var vx = other[4];
+            var vy = other[5];
+
+            var enemy;
+            if (id in known_enemies) {
+                enemy = known_enemies[id];
+                enemy.position.x = x;
+                enemy.position.y = y;
+            } else {
+                console.log(other);
+                enemy = enemies.getFirstExists(false);
+                enemy.reset(x, y);
+                enemy.scale.set(0.4);
+                enemy.anchor.set(0.5);
+                known_enemies[id] = enemy;
+            }
+
+            enemy.angle = angle;
+            enemy.body.velocity.x = vx;
+            enemy.body.velocity.y = vy;
+        });
+    }
+
     function create() {
         // Canvas Mode, the following gives performance (?)
         // game.renderer.clearBeforeRender = false;
         game.renderer.roundPixels = true;
+        game.stage.disableVisibilityChange = true;
 
         game.physics.startSystem(Phaser.Physics.ARCADE);
 
@@ -42,13 +75,10 @@ connection.onopen = function (session) {
         bullets.setAll('anchor.x', 0.5);
         bullets.setAll('anchor.y', 0.5);
 
-        // enemies = game.add.group();
-        // enemies.enableBody = true;
-        // enemies.physicsBodyType = Phaser.Physics.ARCADE;
-        // enemies.createMultiple(40, 'ship');
-        // enemies.setAll('anchor.x', 0.5);
-        // enemies.setAll('anchor.y', 0.5);
-        // enemies.setAll('scale', 0.4);
+        enemies = game.add.group();
+        enemies.enableBody = true;
+        enemies.physicsBodyType = Phaser.Physics.ARCADE;
+        enemies.createMultiple(40, 'ship');
 
         session.call(app_uri + "register_client", [session.id]).then(function(result) {
             var player_id = result[0];
@@ -68,10 +98,14 @@ connection.onopen = function (session) {
 
             function send_updates() {
                 session.publish(app_uri + 'player_update', 
-                        [player_id, ship.x, ship.y, ship.angle, ship.body.speed])
+                        [player_id, ship.position.x, ship.position.y, ship.angle, 
+                        ship.body.velocity.x, ship.body.velocity.y]);
             }
 
-            window.setInterval(send_updates, 1000);
+            window.setInterval(send_updates, 100);
+
+            session.subscribe(app_uri + "player_positions", update_others)
+
         },
         function (error) {
             console.error("problem occured while registering this client.");
