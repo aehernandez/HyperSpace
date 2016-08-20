@@ -1,4 +1,5 @@
 var connection = new autobahn.Connection({
+    //TODO: Get this from the server
     url: "ws://" + window.location.hostname + ":8081/ws",
     realm: "hyperspace"
 });
@@ -150,6 +151,7 @@ connection.onopen = function (session) {
             ship.anchor.set(0.5);
 
             game.physics.enable(ship, Phaser.Physics.ARCADE);
+            ship.body.collideWorldBounds = true;
 
             ship.body.drag.set(100);
             ship.body.maxVelocity.set(200);
@@ -157,7 +159,7 @@ connection.onopen = function (session) {
             ship.body.maxAngular = 100;
             
             // Have the camera follow the player
-            game.camera.follow(ship);
+            game.camera.follow(ship, Phaser.Camera.FOLLOW_TOPDOWN);
 
             function send_updates() {
                 if (document.hasFocus()) {
@@ -188,7 +190,6 @@ connection.onopen = function (session) {
         } else if (cursors.right.isDown) {
             ship.body.angularVelocity += ship_angular_velocity;
         }
-
 
         if (cursors.up.isDown) {
             ship.body.velocity = Phaser.Point.add(ship.body.velocity, 
